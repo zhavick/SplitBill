@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: splitbill-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-splitbill_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-splitbill_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-splitbill_db}
+    ports:
+      - "5578:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-splitbill_admin} -d ${POSTGRES_DB:-splitbill_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: splitbill-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-splitbill_redis_password}"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-splitbill_redis_password}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: splitbill-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      WEB_PORT: 3385
+      WEB_ORIGIN: http://localhost:3385
+      FRONTEND_URL: http://localhost:3385
+      DATABASE_URL: postgresql://${POSTGRES_USER:-splitbill_admin}:${POSTGRES_PASSWORD:-splitbill_dev_password}@postgres:5432/${POSTGRES_DB:-splitbill_db}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD:-splitbill_redis_password}@redis:6379/0
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-splitbill_dev_access_secret_super_secure_key_12345}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-splitbill_dev_refresh_secret_super_secure_key_12345}
+      JWT_ACCESS_EXPIRATION: 15m
+      JWT_REFRESH_EXPIRATION: 7d
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/backend/uploads
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: splitbill-frontend
+    restart: unless-stopped
+    ports:
+      - "3385:3385"
+    environment:
+      NODE_ENV: production
+      PORT: 3385
+      BACKEND_INTERNAL_URL: http://backend:4000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:

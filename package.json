@@ -1,0 +1,29 @@
+{
+  "name": "splitbill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SplitBill - Smart Receipt OCR & Fair Split (monorepo)",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "docker:up": "docker compose up -d",
+    "docker:build": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:ps": "docker compose ps",
+    "db:generate": "npm run prisma:generate -w backend",
+    "db:migrate": "npm run prisma:migrate -w backend",
+    "db:seed": "npm run prisma:seed -w backend",
+    "db:studio": "npm run prisma:studio -w backend",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "test": "npm test -w backend"
+  }
+}
