@@ -16,6 +16,10 @@ import {
   CheckCircle2,
   ExternalLink,
   Wifi,
+  Gift,
+  CheckSquare,
+  Square,
+  HelpCircle,
 } from "lucide-react";
 import { useSplitBillStore } from "@/lib/store";
 import { formatRupiah } from "@/lib/utils";
@@ -47,6 +51,12 @@ export function ItemTagging() {
   const [liveJoinUrl, setLiveJoinUrl] = useState<string | null>(null);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState<boolean>(false);
   const [hostWsConnected, setHostWsConnected] = useState<boolean>(false);
+
+  // State Promo Bundling / BOGO Helper
+  const bogoDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [selectedBogoItemId, setSelectedBogoItemId] = useState<string>(items[0]?.id || "");
+  const [selectedBogoParticipantIds, setSelectedBogoParticipantIds] = useState<string[]>([]);
+  const [bogoSuccessMsg, setBogoSuccessMsg] = useState<string | null>(null);
 
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -105,7 +115,7 @@ export function ItemTagging() {
             });
           }
 
-          // Sinkronisasikan assigned items
+          // Sinkronisasikan pilihan item
           if (remoteState.items) {
             setReceiptData({
               items: remoteState.items.map((it: any) => ({
@@ -164,6 +174,52 @@ export function ItemTagging() {
     } catch {}
   };
 
+  // Handler BOGO / Promo Bundling
+  const handleOpenBogoModal = (preselectedItemId?: string) => {
+    if (preselectedItemId) {
+      setSelectedBogoItemId(preselectedItemId);
+    } else if (items.length > 0 && !selectedBogoItemId) {
+      setSelectedBogoItemId(items[0].id);
+    }
+    // Default 2 partisipan pertama jika ada
+    setSelectedBogoParticipantIds(participants.slice(0, 2).map((p) => p.id));
+    setBogoSuccessMsg(null);
+    bogoDialogRef.current?.showModal();
+  };
+
+  const toggleBogoParticipant = (pId: string) => {
+    setSelectedBogoParticipantIds((prev) =>
+      prev.includes(pId) ? prev.filter((id) => id !== pId) : [...prev, pId]
+    );
+  };
+
+  const handleApplyBogo = () => {
+    if (!selectedBogoItemId) {
+      alert("Pilih menu promo terlebih dahulu.");
+      return;
+    }
+    if (selectedBogoParticipantIds.length < 2) {
+      alert("Pilih minimal 2 peserta untuk membagi paket promo / BOGO ini.");
+      return;
+    }
+
+    const targetItem = items.find((it) => it.id === selectedBogoItemId);
+    if (!targetItem) return;
+
+    // Bersihkan tag yang lama pada item ini dan pasang partisipan terpilih
+    selectedBogoParticipantIds.forEach((pId) => {
+      if (!targetItem.assignedParticipantIds.includes(pId)) {
+        toggleItemAssignment(selectedBogoItemId, pId);
+      }
+    });
+
+    setBogoSuccessMsg(`Promo BOGO berhasil diterapkan ke ${selectedBogoParticipantIds.length} orang!`);
+    setTimeout(() => {
+      bogoDialogRef.current?.close();
+      setBogoSuccessMsg(null);
+    }, 1200);
+  };
+
   const totalAssignedItems = items.filter((it) => it.assignedParticipantIds.length > 0).length;
 
   return (
@@ -178,38 +234,48 @@ export function ItemTagging() {
           <ArrowLeft size={20} />
         </button>
         <div className="text-center">
-          <h1 className="text-base font-bold text-slate-900">Bagi Tagihan ke Teman</h1>
+          <h1 className="text-base font-bold text-slate-900">Penandaan Tag Menu</h1>
           <p className="text-[11px] text-slate-500">
-            Langkah 3 dari 4: {totalAssignedItems}/{items.length} item terbagi
+            Langkah 3 dari 4 • {totalAssignedItems}/{items.length} menu ditandai
           </p>
         </div>
 
-        {/* Live Session QR Button */}
+        {/* Tombol Buka Sesi Meja Kolaboratif QR */}
         <button
           onClick={handleOpenLiveTable}
           disabled={isOpeningLive}
-          className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition flex items-center gap-1 text-xs font-bold"
-          title="Buka QR Meja Kolaboratif"
+          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-blue-200"
+          title="Buka QR Sesi Meja Kolaboratif"
         >
-          <QrCode size={18} />
-          <span className="hidden xs:inline">QR Meja</span>
+          <QrCode size={16} />
+          <span className="hidden sm:inline">QR Meja</span>
         </button>
       </div>
 
-      {/* Quick Tagging Bar: Participant Avatar Chips */}
+      {/* Bar Partisipan Aktif & Aksi Tambah Teman */}
       <div className="sticky top-[57px] z-10 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
             <Users size={13} className="text-blue-600" />
             Pilih Peserta untuk Menandai:
           </span>
-          <button
-            onClick={openAddFriendModal}
-            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-full hover:bg-blue-100 transition"
-          >
-            <UserPlus size={13} />
-            + Teman Baru
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleOpenBogoModal()}
+              className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full hover:bg-amber-100 transition border border-amber-200"
+              title="Kalkulator Promo Beli 1 Gratis 1"
+            >
+              <Gift size={12} className="text-amber-600" />
+              <span>Promo BOGO</span>
+            </button>
+            <button
+              onClick={openAddFriendModal}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-full hover:bg-blue-100 transition border border-blue-200"
+            >
+              <UserPlus size={13} />
+              + Teman
+            </button>
+          </div>
         </div>
 
         {/* Chips Horizontal Scroll */}
@@ -282,14 +348,30 @@ export function ItemTagging() {
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900">{item.itemName}</h3>
-                  <p className="text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-sm text-slate-900">{item.itemName}</h3>
+                    {assignedCount >= 2 && (
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded-md">
+                        Patungan ({assignedCount})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {item.quantity} x {formatRupiah(item.itemPrice)} ={" "}
                     <strong className="text-slate-700">{formatRupiah(item.totalPrice)}</strong>
                   </p>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* BOGO quick split button */}
+                  <button
+                    onClick={() => handleOpenBogoModal(item.id)}
+                    className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-bold border border-amber-200 transition"
+                    title="Bagi Menu / Promo BOGO"
+                  >
+                    <Gift size={14} />
+                  </button>
+
                   {/* Quick 1-tap "Milik Saya" Button */}
                   <button
                     onClick={() => assignSelfToItem(item.id)}
@@ -368,7 +450,115 @@ export function ItemTagging() {
         </button>
       </div>
 
-      {/* Modal Dialog: Sesi Meja Kolaboratif QR Code (Step 6) */}
+      {/* Modal Dialog: Promo Bundling (BOGO / Buy One Get One) */}
+      <dialog
+        ref={bogoDialogRef}
+        aria-labelledby="bogo-dialog-title"
+        className="w-[92%] max-w-sm rounded-3xl bg-white text-slate-900 p-6 shadow-2xl backdrop:bg-slate-900/60"
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+              <Gift size={18} />
+            </div>
+            <div>
+              <h2 id="bogo-dialog-title" className="text-base font-bold text-slate-900">
+                Promo BOGO / Bagi Menu
+              </h2>
+              <p className="text-[11px] text-slate-500">Beli 1 Gratis 1 atau paket patungan bersama</p>
+            </div>
+          </div>
+          <button
+            onClick={() => bogoDialogRef.current?.close()}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4 text-xs">
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Pilih Menu Promo:</label>
+            <select
+              value={selectedBogoItemId}
+              onChange={(e) => setSelectedBogoItemId(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {items.map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.itemName} ({formatRupiah(it.totalPrice)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="font-bold text-slate-700 block mb-1.5">
+              Pilih Partisipan yang Patungan (Minimal 2 orang):
+            </label>
+            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+              {participants.map((p) => {
+                const isChecked = selectedBogoParticipantIds.includes(p.id);
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => toggleBogoParticipant(p.id)}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                      isChecked
+                        ? "bg-amber-50/80 border-amber-300 text-amber-900 font-bold"
+                        : "bg-slate-50 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <span>{p.fullName} {p.isSelf ? "(Saya)" : ""}</span>
+                    {isChecked ? (
+                      <CheckSquare size={16} className="text-amber-600" />
+                    ) : (
+                      <Square size={16} className="text-slate-300" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedBogoParticipantIds.length > 0 && selectedBogoItemId && (
+            <div className="p-3 bg-slate-100 rounded-xl text-[11px] text-slate-600 space-y-0.5">
+              <span>Perkiraan patungan per orang:</span>
+              <strong className="block text-sm text-amber-800">
+                {(() => {
+                  const it = items.find((i) => i.id === selectedBogoItemId);
+                  const total = it ? it.totalPrice : 0;
+                  return formatRupiah(Math.round(total / (selectedBogoParticipantIds.length || 1)));
+                })()}
+                /orang
+              </strong>
+            </div>
+          )}
+
+          {bogoSuccessMsg && (
+            <div className="p-2 bg-emerald-50 text-emerald-800 font-bold rounded-xl text-center">
+              {bogoSuccessMsg}
+            </div>
+          )}
+
+          <div className="pt-2 flex gap-2">
+            <button
+              onClick={() => bogoDialogRef.current?.close()}
+              className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleApplyBogo}
+              className="w-2/3 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition"
+            >
+              Terapkan Promo BOGO
+            </button>
+          </div>
+        </div>
+      </dialog>
+
+      {/* Modal Dialog: Sesi Meja Kolaboratif QR Code */}
       <dialog
         ref={liveQrDialogRef}
         aria-labelledby="qr-dialog-title"
